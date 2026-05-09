@@ -173,6 +173,7 @@ Based on findings so far, decide which sources are relevant:
 - [ ] Database state check
 - [ ] Logs / observability (Grafana via gcx)
 - [ ] Endpoint test (hit the endpoint directly)
+- [ ] Upstream data source validation (EODHD API via `eodhd-api` skill)
 - [ ] Engram deep dive (more specific queries)
 
 Not all sources apply to every problem. Skip irrelevant ones explicitly.
@@ -212,7 +213,16 @@ Dispatch parallel investigations into the relevant sources identified in Phase 2
   - Check headers, status codes, response body
   - Try variations (different params, auth states)
 
-### 3.5 Engram Deep Dive
+### 3.5 Upstream Data Source Validation (EODHD)
+- When the symptom involves incorrect financial data, missing prices, wrong fundamentals, or data freshness issues:
+  - Use the `eodhd-api` skill to query the upstream EODHD API directly
+  - Compare the raw API response with what the application stores/returns
+  - Check if the issue is at ingestion (app didn't fetch/parse correctly) or at source (EODHD doesn't have the data)
+  - Validate field mappings between EODHD response and application models
+  - Check for API key validity and rate limiting issues
+- This helps distinguish "our code is wrong" from "upstream data is missing/stale"
+
+### 3.6 Engram Deep Dive
 - Based on findings so far, make targeted queries:
   - `batch_recall` for multiple related topics discovered during investigation
   - Check for known architectural decisions that explain the behavior
@@ -230,6 +240,7 @@ Organize by source:
 - Database findings
 - Log/metric findings
 - Endpoint test results
+- Upstream data source findings (EODHD)
 - Engram/historical context
 
 ### 4.2 Separate evidence types (MANDATORY)
@@ -310,6 +321,7 @@ Ask the user which action to take. Do NOT proceed without user confirmation.
 - [ ] Database
 - [ ] Logs / Observability
 - [ ] Endpoint test
+- [ ] Upstream data source (EODHD)
 - (mark which were checked and which were skipped with reason)
 
 ---
@@ -326,6 +338,9 @@ Ask the user which action to take. Do NOT proceed without user confirmation.
 - ...
 
 ### From endpoint test
+- ...
+
+### From upstream data source (EODHD)
 - ...
 
 ### From Engram / historical context
@@ -440,6 +455,7 @@ You MUST NOT:
 - If Engram MCP tools are unavailable: note this, proceed without memory context
 - If database MCP is unavailable: note this, skip DB investigation, flag as gap
 - If gcx/Grafana is unavailable: note this, skip observability, flag as gap
+- If EODHD API (`eodhd-api` skill) is unavailable: note this, skip upstream data validation, flag as gap
 - If Serena is unavailable: fall back to Grep/Glob for code navigation
 - If an endpoint is unreachable: note this, flag as gap
 - Never execute destructive queries (INSERT, UPDATE, DELETE) — read-only investigation
