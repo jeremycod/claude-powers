@@ -50,27 +50,40 @@ If a `context:<name>` token is present in the request:
 - use review directory: `.claude/reviews/<name>/`
 - treat that token as workflow metadata, not part of the problem text
 
-## 2. Ticket-derived context
-If no explicit context exists, but a clear ticket ID is present in the request:
+## 2. Worktree-derived context
+If you are in a git worktree (not the main working tree):
+- Check: run `git rev-parse --git-dir` — if output contains `/worktrees/`, you are in a worktree
+- Extract context from the current branch name:
+  - Look for a ticket ID pattern (e.g., `feature/RUS-2458-add-auth` → `RUS-2458`)
+  - Common patterns: `<prefix>/<TICKET-ID>-<description>`, `<TICKET-ID>-<description>`, `<TICKET-ID>/<description>`
+- If a ticket ID is found in the branch name: use `.claude/reviews/<ticket>/`
+- If no ticket ID in branch name but exactly one directory exists under `.claude/reviews/`: use that directory
+- Treat worktree-derived context with HIGH confidence (equivalent to explicit)
+
+When in a worktree, `context:<name>` is NOT required — the worktree branch IS the context signal.
+
+## 3. Ticket-derived context
+If no explicit or worktree context exists, but a clear ticket ID is present in the request:
 - use that ticket ID as context
 - use review directory: `.claude/reviews/<ticket>/`
 
-## 3. Single existing review directory
-If no explicit context or ticket exists, and exactly one review directory exists under `.claude/reviews/`:
+## 4. Single existing review directory
+If no explicit context, worktree context, or ticket exists, and exactly one review directory exists under `.claude/reviews/`:
 - you MAY infer that directory as context
 
-## 4. Default
+## 5. Default
 If none of the above apply:
 - use context: `ad-hoc`
 - use review directory: `.claude/reviews/ad-hoc/`
 
-If multiple review directories exist and no explicit context is provided:
+If multiple review directories exist and no explicit or worktree context is provided:
 - do NOT silently choose one at random
 - default to `ad-hoc`
 - explicitly warn that multiple directories existed and the fallback may be incorrect
 
 You MUST explicitly state whether context was:
 - explicit
+- inferred from worktree branch
 - inferred from ticket
 - inferred from single existing directory
 - defaulted to ad-hoc
@@ -93,12 +106,28 @@ investigate-problem
 <context name>
 
 ## Context resolution
-explicit | inferred from ticket | inferred from single existing directory | defaulted to ad-hoc
+explicit | inferred from worktree branch | inferred from ticket | inferred from single existing directory | defaulted to ad-hoc
 
 ## Reason
 The user reported a live symptom requiring active investigation.
 
 Do not skip this section.
+
+---
+
+# BUILDER FLOW INTEGRATION (MANDATORY)
+
+This skill operates as a Builder in the standard review flow:
+
+```
+investigate-problem (Builder) → challenge-artifact (Critic) → resolve-disagreement (Arbiter) → action
+```
+
+The investigation artifact (`10-builder.md`) MUST be persisted to the review directory so that downstream review skills (`challenge-artifact`, `resolve-disagreement`, `revise-from-review`) can consume it without chat history.
+
+After persisting artifacts, you MUST present the review option as the default next step. The user may choose to skip review and proceed directly to an action, but review is the expected path.
+
+This is identical to how `analyze-problem` and `implement-jira-ticket` operate — they produce Builder artifacts that go through Critic/Arbiter review before any action is taken.
 
 ---
 
@@ -114,9 +143,11 @@ You SHOULD read when available:
 - `20-critic.md`
 - `30-context.md`
 
-You MUST persist substantial investigation results to:
+You MUST ALWAYS persist investigation results to:
 - `00-work-dossier.md`
 - `10-builder.md`
+
+Artifact creation is UNCONDITIONAL — do not wait for the user to ask. Every investigation produces artifacts.
 
 ---
 
@@ -272,13 +303,29 @@ Rank hypotheses by confidence.
 
 ---
 
-## Phase 5: Present Findings & Proposed Actions (CONSULTATIVE)
+## Phase 5: Persist Artifacts & Submit for Review
+
+After completing the investigation, you MUST:
+
+1. Write `00-work-dossier.md` and `10-builder.md` to the review directory (see PERSISTENCE RULES below)
+2. Submit the artifact for review via the standard builder flow
+
+The investigation artifact in `10-builder.md` is a Builder artifact. It MUST go through the same Critic → Context Checker → Arbiter review cycle as any other Builder output before action is taken.
+
+---
+
+## Phase 6: Present Findings & Proposed Actions (CONSULTATIVE)
 
 Present the investigation results clearly, then offer the user a choice of next actions.
 
 ### Action menu (present ALL applicable options):
 
-1. **Fix directly** — if root cause is clear and fix is straightforward
+0. **Review investigation** (DEFAULT) — submit for Critic/Arbiter review before acting
+   → routes to `challenge-artifact` then `resolve-disagreement`
+   → ensures investigation quality before committing to an action
+   → this is the default path unless user explicitly opts out
+
+1. **Fix directly** — if root cause is confirmed and fix is straightforward
    → routes to `implement-from-problem`
    → state what the fix would be
 
@@ -299,6 +346,8 @@ Present the investigation results clearly, then offer the user a choice of next 
    → suggest what access/tools/people are needed
 
 Ask the user which action to take. Do NOT proceed without user confirmation.
+
+NOTE: Options 1-5 should only be taken AFTER the investigation has been reviewed (option 0), unless the user explicitly chooses to skip review.
 
 ---
 
@@ -384,10 +433,11 @@ Ask the user which action to take. Do NOT proceed without user confirmation.
 
 | # | Action | Rationale | Routes to |
 |---|--------|-----------|-----------|
+| 0 | Review investigation (default) | Validate findings before acting | challenge-artifact → resolve-disagreement |
 | 1 | ... | ... | ... |
 | 2 | ... | ... | ... |
 
-**Which action would you like to take?**
+**Which action would you like to take?** (Default: 0 — submit for review)
 
 ---
 
@@ -414,7 +464,7 @@ Include:
 - sources investigated
 - key findings summary
 - ranked hypotheses (brief)
-- recommended next phase
+- recommended next phase (default: `challenge-artifact` for review)
 - notable missing evidence
 
 ## `10-builder.md`

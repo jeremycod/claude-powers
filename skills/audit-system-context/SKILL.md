@@ -31,26 +31,39 @@ You MUST resolve context using this exact order:
 If `context:<name>` is present:
 - use `.claude/reviews/<name>/`
 
-## 2. Ticket-derived context
-If no explicit context exists, but a clear ticket ID is present:
+## 2. Worktree-derived context
+If you are in a git worktree (not the main working tree):
+- Check: run `git rev-parse --git-dir` — if output contains `/worktrees/`, you are in a worktree
+- Extract context from the current branch name:
+  - Look for a ticket ID pattern (e.g., `feature/RUS-2458-add-auth` → `RUS-2458`)
+  - Common patterns: `<prefix>/<TICKET-ID>-<description>`, `<TICKET-ID>-<description>`, `<TICKET-ID>/<description>`
+- If a ticket ID is found in the branch name: use `.claude/reviews/<ticket>/`
+- If no ticket ID in branch name but exactly one directory exists under `.claude/reviews/`: use that directory
+- Treat worktree-derived context with HIGH confidence (equivalent to explicit)
+
+When in a worktree, `context:<name>` is NOT required — the worktree branch IS the context signal.
+
+## 3. Ticket-derived context
+If no explicit or worktree context exists, but a clear ticket ID is present (in branch name, commits, or artifacts):
 - use `.claude/reviews/<ticket>/`
 
-## 3. Single existing review directory
-If neither explicit context nor ticket exists, and exactly one directory exists under `.claude/reviews/`:
+## 4. Single existing review directory
+If none of the above apply, and exactly one directory exists under `.claude/reviews/`:
 - infer that directory as context
 
-## 4. Default
+## 5. Default
 Otherwise:
 - use `ad-hoc`
 - use `.claude/reviews/ad-hoc/`
 
-If multiple review directories exist and no explicit context is provided:
+If multiple review directories exist and no explicit or worktree context is provided:
 - do NOT silently choose one
 - default to `ad-hoc`
 - explicitly warn that the fallback may be incorrect
 
 You MUST explicitly state whether context was:
 - explicit
+- inferred from worktree branch
 - inferred from ticket
 - inferred from single existing directory
 - defaulted to ad-hoc
@@ -68,7 +81,7 @@ builder + critic + system
 <context name>
 
 ## Context resolution
-explicit | inferred from ticket | inferred from single existing directory | defaulted to ad-hoc
+explicit | inferred from worktree branch | inferred from ticket | inferred from single existing directory | defaulted to ad-hoc
 
 ## Artifact boundary
 - branch vs main
