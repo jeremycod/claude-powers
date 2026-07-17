@@ -224,6 +224,34 @@ If no Jira integration is available, output the list of tickets that SHOULD be t
 
 ---
 
+## Step 6.5: Add PR Link to Jira Tickets (Traceability)
+
+After creating the PR, add a structured PR reference comment to the **primary ticket** (epic or parent story) for traceability.
+
+### 6.5.1 Determine the primary ticket
+
+The primary ticket is:
+- The **epic** if the PR covers multiple stories under one epic
+- The **single story** if the PR covers only one ticket
+
+### 6.5.2 Add PR link comment
+
+Use `mcp__atlassian__addCommentToJiraIssue` with `contentFormat: "markdown"`:
+
+```markdown
+## Pull Requests
+
+| PR | Title | Merged |
+|---|---|---|
+| [#<number>](https://github.com/MZ-Innovations/rustfolio/pull/<number>) | <PR title> | pending |
+```
+
+Note: Use "pending" for the merged date since the PR is just created, not yet merged. The merge-pr skill will update traceability when the PR is merged.
+
+This ensures bidirectional traceability: PR → ticket (via PR title/body), ticket → PR (via Jira comment).
+
+---
+
 ## Step 7: Report
 
 Output a clear summary:

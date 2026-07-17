@@ -28,7 +28,8 @@ You MUST resolve context using this exact order:
 
 ## 1. Explicit context
 If `context:<name>` is present:
-- use `.claude/reviews/<name>/`
+- If `<name>` starts with `problems/` → use `.claude/<name>/` (problem batch artifacts live under `.claude/problems/N/`, not under reviews)
+- Otherwise → use `.claude/reviews/<name>/`
 
 ## 2. Worktree-derived context
 If you are in a git worktree (not the main working tree):
@@ -91,9 +92,9 @@ explicit | inferred from worktree branch | inferred from ticket | inferred from 
 
 # REVIEW DIRECTORY
 
-Use:
-
-`.claude/reviews/<context>/`
+Use the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/`
+- For all other contexts → `.claude/reviews/<context>/`
 
 You MUST read:
 - `10-builder.md`
@@ -103,7 +104,7 @@ You MUST read:
 If any are missing:
 → state reduced confidence
 
-You MUST write:
+You MUST write (into the same resolved context directory):
 - `40-arbiter.md`
 - `50-revision-request.md`
 
@@ -239,9 +240,9 @@ State:
 
 # REVISION REQUEST
 
-You MUST write:
-
-`.claude/reviews/<context>/50-revision-request.md`
+You MUST write `50-revision-request.md` into the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/50-revision-request.md`
+- For all other contexts → `.claude/reviews/<context>/50-revision-request.md`
 
 Format:
 
@@ -260,9 +261,9 @@ Format:
 
 # PERSISTENCE
 
-Write:
-- `.claude/reviews/<context>/40-arbiter.md`
-- `.claude/reviews/<context>/50-revision-request.md`
+Write into the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/40-arbiter.md` and `.claude/problems/N/50-revision-request.md`
+- For all other contexts → `.claude/reviews/<context>/40-arbiter.md` and `.claude/reviews/<context>/50-revision-request.md`
 
 ---
 

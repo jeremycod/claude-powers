@@ -125,6 +125,46 @@ For EACH ticket ID identified in Step 3:
 
 ---
 
+## Step 5.5: Add PR Link to Jira Tickets (Traceability)
+
+After merge, add a structured PR reference comment to the **primary ticket** (epic or parent story) for traceability.
+
+### 5.5.1 Determine the primary ticket
+
+The primary ticket is:
+- The **epic** if the PR covers multiple stories under one epic
+- The **single story** if the PR covers only one ticket
+
+### 5.5.2 Add PR link comment
+
+Use `mcp__atlassian__addCommentToJiraIssue` with `contentFormat: "markdown"`:
+
+**For a single PR on the ticket:**
+```markdown
+## Pull Requests
+
+| PR | Title | Merged |
+|---|---|---|
+| [#<number>](https://github.com/MZ-Innovations/rustfolio/pull/<number>) | <PR title> | <YYYY-MM-DD> |
+```
+
+**If the ticket already has a "Pull Requests" comment** (from a prior PR in the same epic):
+- Do NOT add a duplicate table — instead add a single-row update comment:
+```markdown
+**PR merged:** [#<number>](https://github.com/MZ-Innovations/rustfolio/pull/<number>) — <PR title> (merged <YYYY-MM-DD>)
+```
+
+### 5.5.3 Also comment on child stories
+
+For each **story/task** completed by this PR, add a brief comment linking back:
+```markdown
+Completed via [PR #<number>](https://github.com/MZ-Innovations/rustfolio/pull/<number>) — merged to <base-branch>
+```
+
+This ensures bidirectional traceability: PR → ticket (via PR title/body), ticket → PR (via Jira comment).
+
+---
+
 ## Step 6: Update Parent Epic Status
 
 For EACH unique parent epic found in Step 3:
@@ -160,6 +200,21 @@ gh pr view <number> --json headRefName
 Ask the user:
 - "Delete the remote branch `<branch>`?" (default: yes after merge)
 - "Delete the local branch?" (default: yes if not current branch)
+- "Prune the git worktree for this branch?" (only ask if a worktree exists for the merged branch)
+
+To detect worktrees:
+```bash
+git worktree list
+```
+
+If a worktree is found matching the merged branch:
+- show its path
+- ask the user whether to remove it
+- if confirmed:
+  ```bash
+  git worktree remove <path>
+  ```
+- if removal fails (e.g., uncommitted changes), report the error and suggest `--force` only with user confirmation
 
 Do NOT auto-delete without asking.
 
@@ -189,9 +244,14 @@ Do NOT auto-delete without asking.
 | EPIC-ID | In Testing | All 5/5 stories Done |
 | EPIC-ID | In Progress | 3/5 stories Done, 2 remaining |
 
+## PR Traceability
+- Primary ticket commented: <ticket> | skipped (reason)
+- Story comments added: <count> | skipped
+
 ## Cleanup
 - Remote branch: deleted | kept
 - Local branch: deleted | kept
+- Worktree: removed | kept | N/A (no worktree found)
 
 ## Notes
 - <any warnings, skipped transitions, or issues>

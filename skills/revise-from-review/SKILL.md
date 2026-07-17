@@ -26,7 +26,8 @@ You MUST resolve context using this exact order:
 
 ## 1. Explicit context
 If `context:<name>` is present:
-- use `.claude/reviews/<name>/`
+- If `<name>` starts with `problems/` → use `.claude/<name>/` (problem batch artifacts live under `.claude/problems/N/`, not under reviews)
+- Otherwise → use `.claude/reviews/<name>/`
 
 ## 2. Worktree-derived context
 If you are in a git worktree (not the main working tree):
@@ -90,9 +91,9 @@ The current artifact must be revised based on prior review outputs.
 
 # REVIEW DIRECTORY
 
-Use:
-
-`.claude/reviews/<context>/`
+Use the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/`
+- For all other contexts → `.claude/reviews/<context>/`
 
 You MUST read when available:
 - `00-work-dossier.md`
@@ -104,7 +105,7 @@ You MUST read when available:
 - `12-builder-diff.patch`
 - `13-builder-tests.txt`
 
-You MUST update:
+You MUST update (in the resolved context directory):
 - `10-builder.md`
 - `11-builder-summary.json` (if present or relevant)
 - `12-builder-diff.patch` (if code changes)
@@ -211,9 +212,9 @@ State:
 
 # PERSISTENCE
 
-You MUST update Builder artifacts in:
-
-`.claude/reviews/<context>/`
+You MUST update Builder artifacts in the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/`
+- For all other contexts → `.claude/reviews/<context>/`
 
 At minimum:
 - `10-builder.md`
@@ -231,3 +232,21 @@ If relevant:
 - must-fix items may not be ignored
 - should-fix items may be deferred only with explanation
 - keep the revision auditable and scoped
+
+---
+
+# NO CODE IMPLEMENTATION WITHOUT EXPLICIT PERMISSION (NON-NEGOTIABLE)
+
+**This skill MUST NOT implement code changes unless the user has explicitly granted permission to modify application code.**
+
+"Revise the artifact" means revising the Builder document (`10-builder.md`) — updating the analysis, plan, hypotheses, or proposed actions based on review feedback. It does NOT mean implementing code fixes.
+
+When the revision request contains actionable findings (bugs to fix, code to change):
+- Revise the `10-builder.md` artifact to incorporate the feedback
+- Update the implementation plan or proposed actions accordingly
+- Do NOT edit, create, or modify any application source files
+- Do NOT route to implementation skills without the user's explicit written permission
+
+The only files this skill may write are review artifacts in the resolved context directory (`.claude/reviews/` or `.claude/problems/N/`).
+
+If the user wants code changes, they will explicitly say so. Until then, this skill produces revised analysis and planning documents only.

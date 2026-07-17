@@ -1,7 +1,7 @@
 ---
 name: investigate-problem
-description: Use when the user reports a symptom (broken endpoint, incorrect result, screenshot of wrong behavior, error description) and wants active investigation across codebase, database, logs, and observability tools to identify root causes and propose next actions.
-argument-hint: [context:<name>] <symptom — endpoint, error, screenshot, description of wrong behavior>
+description: Use when the user reports a symptom (broken endpoint, incorrect result, screenshot of wrong behavior, error description) and wants active investigation across codebase, database, logs, and observability tools to identify root causes and propose next actions. Also handles "investigate-problem #N validated" to mark a verification entry as validated.
+argument-hint: [context:<name>] <symptom — endpoint, error, screenshot, description of wrong behavior> | #<id> validated
 ---
 
 # Investigate Problem
@@ -15,6 +15,96 @@ Examples of valid inputs:
 - error message or stack trace
 - "this field shows X but should show Y"
 - description of unexpected application behavior
+- `#5 validated` — marks verification entry #5 as validated
+
+---
+
+# VALIDATION MODE
+
+If the user input matches the pattern `#<id> validated` (e.g., "investigate-problem #5 validated"), this is a **validation command**, not a new investigation.
+
+## Validation flow:
+1. Read `.claude/.reviews/investigate-problem-verification.md`
+2. Find the entry with the matching ID
+3. Update its status from `pending` to `validated`
+4. Add validation date
+5. Confirm to user
+
+## Status update format:
+Change `**Status:** pending` to `**Status:** validated (YYYY-MM-DD)`
+
+If the entry does not exist, inform the user. If it's already validated, inform the user.
+
+After handling validation, STOP — do not proceed with the investigation flow below.
+
+---
+
+# VERIFICATION TRACKING
+
+Every investigation that identifies a problem MUST append a verification entry to:
+
+`.claude/.reviews/investigate-problem-verification.md`
+
+This document tracks problems discovered during investigations so they can later be validated as fixed.
+
+## When to append an entry
+
+Append a verification entry at the END of Phase 5 (Persist Artifacts), AFTER writing `00-work-dossier.md` and `10-builder.md`, when:
+- A root cause was identified (confidence: `confirmed` or `likely`)
+- The investigation produced actionable findings (fix, ticket, design)
+
+Do NOT append if:
+- The investigation was inconclusive (all hypotheses are `weak`)
+- The user explicitly says this is informational only
+
+## Entry format
+
+```markdown
+---
+
+### #<ID>
+
+**Status:** pending
+**Date:** YYYY-MM-DD
+**Context:** <context name used in investigation>
+**Jira:** <epic/ticket URL if created, otherwise "—">
+
+**Problem:** <1-2 sentence description of what's wrong>
+
+**Steps to reproduce:**
+1. <step>
+2. <step>
+3. <step>
+
+**Expected:** <what should happen>
+**Actual:** <what happens instead>
+```
+
+## Rules for entries
+
+- **ID**: Auto-increment integer. Read the file, find the highest existing ID, use ID+1. If file doesn't exist, start at 1.
+- **Concise**: Problem description is 1-2 sentences max. Steps to reproduce are 3-5 numbered steps max.
+- **Complex reproduction**: If reproducing requires more than 5 steps, complex setup, or multi-service coordination:
+  - Write a separate `steps-to-reproduce-<ID>.md` in `.claude/.reviews/context/`
+  - In the verification entry, replace steps with: `See [detailed steps](.reviews/context/steps-to-reproduce-<ID>.md)`
+- **Jira link**: Add the epic/ticket URL when Jira tickets are created during the investigation. If tickets are created later (user picks option 2/3), update the entry at that time.
+- **Status lifecycle**: `pending` → `validated` (via `#N validated` command)
+
+## File initialization
+
+If `.claude/.reviews/investigate-problem-verification.md` doesn't exist, create it with:
+
+```markdown
+# Investigation Verification Tracker
+
+Problems identified during investigations, tracked for validation.
+
+Usage: `/investigate-problem #<ID> validated` to mark as fixed.
+```
+
+Then append the first entry below.
+
+---
 
 Your job is to **actively investigate** — scan codebase, query databases, check logs and metrics, hit endpoints, consult Engram memory — then synthesize findings and present the user with ranked hypotheses and proposed next actions.
 
@@ -223,19 +313,41 @@ Dispatch parallel investigations into the relevant sources identified in Phase 2
 - Use Serena (`find_referencing_symbols`, `find_implementations`) for deeper navigation
 
 ### 3.2 Database Investigation
-- Use database MCP tools to check:
+
+**IMPORTANT:** Determine which environment the issue is in, then use the correct MCP connection:
+- Local: `connection="alphafolio_local"`
+- Staging: `connection="alphafolio_staging"`
+- Production: `connection="alphafolio_production"`
+
+Use database MCP tools to check:
   - Schema: `describe_table` for relevant tables
   - Data state: `execute_sql` to query relevant records
   - Sample data: `get_sample_data` for the affected entities
   - Constraints, indexes, relationships
+  - Pre-built templates: `list_templates` / `execute_template` for common queries (users, portfolios, risk, jobs, etc.)
 - Look for data inconsistencies, missing records, stale state, constraint violations
+- Compare data across environments if the issue is environment-specific
 
 ### 3.3 Logs & Observability
-- Use gcx tools if Grafana is available:
-  - Check error rates and latency for the relevant service/endpoint
-  - Look for recent anomalies in metrics
-  - Search logs for related error messages
-- Check application logs if accessible via filesystem
+
+**IMPORTANT:** Before querying logs, determine which environment the issue is in. Then recall Engram memory for access details:
+- Call `recall("investigation resources environment access")` or `get_context_for("rustfolio investigation")` to retrieve Loki/Grafana credentials and endpoints.
+- The project CLAUDE.md also contains exact curl commands for each environment under "Investigation & Debugging Resources → Logs — Loki".
+
+**How to query Loki logs (via curl in Bash tool):**
+1. Identify the environment (local / staging / production)
+2. Get credentials from CLAUDE.md or Engram memory
+3. Build a LogQL query: `{service="alphafolio",level="error"}` or `{service="alphafolio"} |= "search_text"`
+4. Set time range: `start` and `end` as epoch nanoseconds (use `$(date -v-1H +%s)000000000` for last hour)
+5. Parse JSON response: `data.result[].values[]` contains `[timestamp, log_line]` pairs
+
+**Useful LogQL patterns:**
+- Errors in last hour: `{service="alphafolio",level="error"}`
+- Specific endpoint: `{service="alphafolio"} |= "/api/endpoint_path"`
+- Specific error message: `{service="alphafolio"} |= "error text"`
+- JSON field filter: `{service="alphafolio"} | json | message =~ ".*pattern.*"`
+
+If gcx MCP tools are also available, prefer those for dashboards and metrics. For raw log queries, curl against Loki is faster and more flexible.
 
 ### 3.4 Endpoint Test
 - If a URL/endpoint is provided and accessible:
@@ -308,7 +420,8 @@ Rank hypotheses by confidence.
 After completing the investigation, you MUST:
 
 1. Write `00-work-dossier.md` and `10-builder.md` to the review directory (see PERSISTENCE RULES below)
-2. Submit the artifact for review via the standard builder flow
+2. Append a verification entry to `.claude/.reviews/investigate-problem-verification.md` (see VERIFICATION TRACKING above)
+3. Submit the artifact for review via the standard builder flow
 
 The investigation artifact in `10-builder.md` is a Builder artifact. It MUST go through the same Critic → Context Checker → Arbiter review cycle as any other Builder output before action is taken.
 
@@ -446,6 +559,7 @@ NOTE: Options 1-5 should only be taken AFTER the investigation has been reviewed
 - Context resolution:
 - Directory used:
 - Files written:
+- Verification entry: #<ID> (or "skipped — inconclusive")
 
 ---
 
@@ -473,6 +587,9 @@ Must contain the full investigation artifact:
 - all hypotheses with supporting/conflicting evidence
 - proposed actions with rationale
 - enough detail for downstream Critic, Context Checker, or any follow-up skill to continue without chat history
+
+## `.claude/.reviews/investigate-problem-verification.md`
+Append a verification entry (see VERIFICATION TRACKING section above) unless investigation was inconclusive. If Jira tickets are created as part of the action menu (options 2/3), update the entry's `**Jira:**` field with the epic/ticket URL before completing.
 
 ---
 
@@ -502,11 +619,28 @@ You MUST NOT:
 
 # CRITICAL CONSTRAINTS
 
+## NO CODE IMPLEMENTATION (NON-NEGOTIABLE)
+
+**This skill MUST NEVER write, edit, or modify application code.** Investigation is read-only. The goal is to produce findings, hypotheses, and an implementation plan or Jira stories — NOT to fix anything.
+
+Even if the root cause is obvious and the fix is trivial:
+- Do NOT implement the fix
+- Do NOT create or modify source files
+- Do NOT route to `implement-from-problem` without the user's explicit written permission to make code changes
+- Present findings and proposed actions, then STOP and wait for user direction
+
+The only files this skill may write are review artifacts (`00-work-dossier.md`, `10-builder.md`) in the `.claude/reviews/` directory, the verification tracker (`.claude/.reviews/investigate-problem-verification.md`), and complex reproduction steps (`.claude/.reviews/context/steps-to-reproduce-<ID>.md`).
+
+If the user wants code changes, they will explicitly say so. Until then, the output is analysis and planning only.
+
+---
+
 - If Engram MCP tools are unavailable: note this, proceed without memory context
-- If database MCP is unavailable: note this, skip DB investigation, flag as gap
-- If gcx/Grafana is unavailable: note this, skip observability, flag as gap
+- If database MCP is unavailable: fall back to psql via Bash (credentials in backend/.env, .env.staging, .env.production)
+- If Loki/Grafana is unreachable: note this, skip observability, flag as gap. Check CLAUDE.md for curl commands.
 - If EODHD API (`eodhd-api` skill) is unavailable: note this, skip upstream data validation, flag as gap
 - If Serena is unavailable: fall back to Grep/Glob for code navigation
 - If an endpoint is unreachable: note this, flag as gap
 - Never execute destructive queries (INSERT, UPDATE, DELETE) — read-only investigation
 - Never modify code during investigation — this phase is observation only
+- Always check the correct environment — do not query production DB when investigating a staging issue

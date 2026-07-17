@@ -138,6 +138,7 @@ explicit | inferred from worktree branch | inferred from ticket | inferred from 
 - If the user clearly wants understanding of already-collected evidence, route to analysis
 - If the user clearly wants ticketing or planning artifacts, route to planning
 - If the user clearly wants solution options or tradeoffs, route to design
-- If the user clearly wants validation of existing work, route to validation
+- If the user clearly wants validation of existing work, route to validation (`validate-ticket`)
+- If the user provides a ticket ID and wants to know what to test or wants a QA summary, route to `validate-ticket`
 - If the request is unclear, choose builder-router rather than skipping routing
 - Do not start implementation inside this router unless the request is extremely explicit and no further routing ambiguity exists

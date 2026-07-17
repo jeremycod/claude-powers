@@ -29,7 +29,8 @@ You MUST resolve context using this exact order:
 
 ## 1. Explicit context
 If `context:<name>` is present:
-- use `.claude/reviews/<name>/`
+- If `<name>` starts with `problems/` → use `.claude/<name>/` (problem batch artifacts live under `.claude/problems/N/`, not under reviews)
+- Otherwise → use `.claude/reviews/<name>/`
 
 ## 2. Worktree-derived context
 If you are in a git worktree (not the main working tree):
@@ -94,9 +95,9 @@ Validating system-level correctness and runtime safety.
 
 # REVIEW DIRECTORY
 
-Use:
-
-`.claude/reviews/<context>/`
+Use the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/`
+- For all other contexts → `.claude/reviews/<context>/`
 
 You MUST read:
 - `10-builder.md`
@@ -105,7 +106,7 @@ You MUST read:
 - `12-builder-diff.patch` (if exists)
 
 You MUST write:
-- `30-context.md`
+- `30-context.md` (into the same resolved context directory)
 
 ---
 
@@ -257,9 +258,9 @@ State:
 
 # PERSISTENCE
 
-Write:
-
-`.claude/reviews/<context>/30-context.md`
+Write `30-context.md` into the resolved context directory:
+- For `problems/N` contexts → `.claude/problems/N/30-context.md`
+- For all other contexts → `.claude/reviews/<context>/30-context.md`
 
 ---
 

@@ -139,7 +139,38 @@ Clarify:
 
 ---
 
-## 2. Extract observations (STRICT)
+## 2. Gather supporting evidence
+
+Before reasoning, actively collect evidence from available tools to supplement user-provided input.
+
+### 2.1 Consult Engram memory
+- Call `recall` with a description of the problem area
+- Call `get_similar_errors` if the problem involves errors
+- Note any prior incidents, known issues, or team decisions
+
+### 2.2 Query database (if relevant)
+Determine which environment the problem is in, then use the correct MCP connection:
+- Local: `execute_sql(connection="alphafolio_local", sql="...")`
+- Staging: `execute_sql(connection="alphafolio_staging", sql="...")`
+- Production: `execute_sql(connection="alphafolio_production", sql="...")`
+
+Use `describe_table`, `get_sample_data`, and pre-built templates (`list_templates` / `execute_template`) to check data state.
+
+### 2.3 Query logs (if relevant)
+Check Loki logs to find errors, warnings, or relevant activity around the problem timeframe:
+- Call `recall("investigation resources environment access")` or check the project CLAUDE.md for exact curl commands per environment
+- Build LogQL queries: `{service="alphafolio",level="error"}`, `{service="alphafolio"} |= "search_text"`
+- Local: query via Grafana proxy at localhost:3001
+- Staging: query via Grafana proxy at 10.0.0.207:3001 (service account token)
+- Production: query Grafana Cloud Loki directly (basic auth)
+
+### 2.4 Check relevant code
+- Use Grep/Glob or Serena to find relevant handlers, services, or logic paths
+- Check git log for recent changes to the affected area
+
+---
+
+## 3. Extract observations (STRICT)
 
 Extract only directly observable data from:
 - user input
@@ -152,7 +183,7 @@ Extract only directly observable data from:
 
 ---
 
-## 3. Separate evidence types (MANDATORY)
+## 4. Separate evidence types (MANDATORY)
 
 You MUST separate:
 
@@ -167,7 +198,7 @@ Unproven / inferred without direct evidence
 
 ---
 
-## 4. Validate internal consistency (MANDATORY)
+## 5. Validate internal consistency (MANDATORY)
 
 You MUST:
 - identify contradictions
@@ -178,7 +209,7 @@ Do NOT resolve contradictions by assumption.
 
 ---
 
-## 5. Detect gating conditions (MANDATORY)
+## 6. Detect gating conditions (MANDATORY)
 
 Check for:
 - status fields
@@ -192,7 +223,7 @@ Explain what is blocked and why.
 
 ---
 
-## 6. Handle incomplete or truncated input (CRITICAL)
+## 7. Handle incomplete or truncated input (CRITICAL)
 
 If input is:
 - truncated
@@ -211,7 +242,7 @@ You MUST NOT:
 
 ---
 
-## 7. Build root cause hypotheses
+## 8. Build root cause hypotheses
 
 For each hypothesis:
 - explanation
@@ -226,7 +257,7 @@ Confidence must be one of:
 
 ---
 
-## 8. System-level reasoning
+## 9. System-level reasoning
 
 Explain:
 - why the system behaves this way
@@ -235,13 +266,13 @@ Explain:
 
 ---
 
-## 9. Identify missing evidence
+## 10. Identify missing evidence
 
 List what would confirm or reject hypotheses.
 
 ---
 
-## 10. Recommend next step
+## 11. Recommend next step
 
 One of:
 - design-solution
@@ -379,3 +410,14 @@ Must contain the full analysis artifact.
 - Prefer uncertainty over incorrect clarity
 - Prefer explicit reasoning over implicit assumptions
 - Ensure the output is auditable and reusable by Critic and Context Checker
+
+---
+
+# TOOL AVAILABILITY FALLBACKS
+
+- If Engram MCP tools are unavailable: note this, proceed without memory context
+- If database MCP is unavailable: fall back to psql via Bash (credentials in backend/.env, .env.staging, .env.production)
+- If Loki/Grafana is unreachable: note this, skip log analysis, flag as gap. Check project CLAUDE.md for curl commands.
+- If Serena is unavailable: fall back to Grep/Glob for code navigation
+- Never execute destructive queries (INSERT, UPDATE, DELETE) — read-only analysis
+- Always check the correct environment — do not query production DB when analyzing a staging issue
